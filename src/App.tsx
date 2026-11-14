@@ -5,7 +5,7 @@ import {
   Search, Plus, LogOut, Pencil, Trash2, X,
   ScanLine, Camera, ImagePlus
 } from 'lucide-react'
-import { createWorker } from 'tesseract.js'
+import { recognizeBusinessCard } from './ocr'
 import { supabase } from './supabase'
 import './App.css'
 import './animations.css'
@@ -33,6 +33,14 @@ const emptyForm = {
   address: '',
   notes: '',
 }
+
+// The camera option only makes sense on phones and tablets. On a computer the
+// browser would just open the file explorer, so we show a message instead.
+const canUseCamera =
+  typeof navigator !== 'undefined' &&
+  (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    // iPadOS reports itself as a Mac, but has a touch screen
+    (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1))
 
 function extractContactData(text: string) {
   const lines = text
@@ -273,20 +281,12 @@ function App() {
     setScanProgress(0)
     setScanMessage('Подготавливаем распознавание...')
 
-    let worker: Awaited<ReturnType<typeof createWorker>> | null = null
-
     try {
-      worker = await createWorker('eng+deu+rus+ukr', 1, {
-        logger: info => {
-          if (info.status === 'recognizing text') {
-            setScanProgress(Math.round(info.progress * 100))
-            setScanMessage('Распознаём текст...')
-          }
-        },
-      })
-
-      const result = await worker.recognize(file)
-      const recognizedText = result.data.text
+      const recognizedText = await recognizeBusinessCard(
+        file,
+        setScanProgress,
+        setScanMessage
+      )
 
       if (!recognizedText.trim()) {
         throw new Error('Не удалось распознать текст. Попробуй другое фото.')
@@ -314,9 +314,6 @@ function App() {
           : 'Не удалось распознать визитку.'
       )
     } finally {
-      if (worker) {
-        await worker.terminate()
-      }
       setScanning(false)
       setScanProgress(0)
       e.target.value = ''
@@ -641,13 +638,20 @@ function App() {
 
             <div className="scanner-options">
               <button
-                className="scanner-option"
-                onClick={() => cameraRef.current?.click()}
+                className={canUseCamera ? 'scanner-option' : 'scanner-option unavailable'}
+                onClick={() => {
+                  if (!canUseCamera) {
+                    setScanMessage('С вашего устройства сделать фото недоступно. Загрузите готовое изображение или откройте сайт с телефона.')
+                    return
+                  }
+
+                  cameraRef.current?.click()
+                }}
                 disabled={scanning}
               >
                 <Camera size={25} />
                 <strong>Open camera</strong>
-                <span>Take a photo now</span>
+                <span>{canUseCamera ? 'Take a photo now' : 'Available on mobile devices'}</span>
               </button>
 
               <button

@@ -397,6 +397,11 @@ button:focus-visible,
   border-color: #e7ded2;
 }
 
+/* Camera option on a computer: looks muted, still clickable to show the hint */
+.scanner-option.unavailable {
+  opacity: 0.6;
+}
+
 .scanner-progress {
   animation: fade-up 0.35s var(--ease-out);
 }
