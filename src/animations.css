@@ -1,0 +1,425 @@
+/*
+  Visual polish and animations.
+  Loaded after App.css. To revert everything, delete this file
+  and its import in App.tsx.
+*/
+
+:root {
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+::selection {
+  background: #e7d9c6;
+  color: #302820;
+}
+
+/* ---------- Keyframes ---------- */
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-down {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(152, 115, 77, 0.45); }
+  70%, 100% { box-shadow: 0 0 0 8px rgba(152, 115, 77, 0); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(36px, -28px, 0) scale(1.08); }
+}
+
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+@keyframes count-bump {
+  0% { opacity: 0; transform: scale(0.9); }
+  60% { transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* ---------- Accessibility ---------- */
+
+button:focus-visible,
+.brand:focus-visible {
+  outline: 2px solid #987653;
+  outline-offset: 2px;
+}
+
+/* ---------- Auth page ---------- */
+
+.auth-page {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Two soft warm blobs slowly drifting behind the content */
+.auth-page::before,
+.auth-page::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(24px);
+}
+
+.auth-page::before {
+  top: 6%;
+  left: -8%;
+  width: min(46vw, 620px);
+  height: min(46vw, 620px);
+  background: radial-gradient(circle, rgba(200, 170, 130, 0.22), transparent 68%);
+  animation: drift 18s ease-in-out infinite;
+}
+
+.auth-page::after {
+  right: -10%;
+  bottom: 4%;
+  width: min(38vw, 520px);
+  height: min(38vw, 520px);
+  background: radial-gradient(circle, rgba(190, 150, 110, 0.16), transparent 68%);
+  animation: drift 22s ease-in-out -8s infinite reverse;
+}
+
+.brand-icon {
+  transition: transform 0.3s var(--ease-out), background 0.3s ease;
+}
+
+.brand:hover .brand-icon {
+  transform: rotate(-8deg) scale(1.06);
+  background: #dfcdb5;
+}
+
+.status-dot {
+  animation: pulse-ring 2.2s ease-out infinite;
+}
+
+/* Intro text appears step by step */
+.intro > :not(.feature-list) {
+  animation: fade-up 0.7s var(--ease-out) backwards;
+}
+
+.intro > :nth-child(2) { animation-delay: 0.08s; }
+.intro > :nth-child(3) { animation-delay: 0.16s; }
+
+.feature-list div {
+  animation: fade-up 0.6s var(--ease-out) backwards;
+  transition: transform 0.25s var(--ease-out), color 0.25s ease;
+}
+
+.feature-list div:nth-child(1) { animation-delay: 0.3s; }
+.feature-list div:nth-child(2) { animation-delay: 0.38s; }
+.feature-list div:nth-child(3) { animation-delay: 0.46s; }
+
+@media (hover: hover) {
+  .feature-list div:hover {
+    transform: translateX(4px);
+    color: #302820;
+  }
+}
+
+.auth-card {
+  animation: fade-up 0.8s var(--ease-out) 0.1s backwards;
+  transition: box-shadow 0.3s ease;
+}
+
+.auth-card:hover {
+  box-shadow: 0 24px 70px rgba(65, 47, 29, 0.11);
+}
+
+/* Re-plays when switching between "Sign in" and "Register" (key={mode}) */
+.card-heading {
+  animation: fade-in 0.35s ease;
+}
+
+.tab {
+  transition: background 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.tab:not(.active):hover {
+  color: #4a3c2e;
+  background: rgba(255, 253, 249, 0.55);
+}
+
+/* ---------- Inputs ---------- */
+
+.input-wrap svg,
+.search-box svg {
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.input-wrap:focus-within svg,
+.search-box:focus-within svg {
+  color: #987653;
+}
+
+.input-wrap:focus-within svg {
+  transform: scale(1.08);
+}
+
+.search-box {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-input {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.form-input:focus {
+  background: #fff;
+}
+
+.message {
+  animation: fade-up 0.35s var(--ease-out);
+}
+
+/* ---------- Buttons ---------- */
+
+.submit-btn,
+.add-btn {
+  transition: background 0.2s ease, transform 0.2s var(--ease-out), box-shadow 0.2s ease;
+}
+
+.submit-btn:hover:not(:disabled),
+.add-btn:hover {
+  box-shadow: 0 8px 20px rgba(112, 86, 61, 0.28);
+}
+
+.submit-btn:active:not(:disabled),
+.add-btn:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: none;
+}
+
+.submit-btn:disabled:hover {
+  transform: none;
+  background: #70563d;
+}
+
+.submit-btn svg,
+.add-btn svg {
+  transition: transform 0.25s var(--ease-out);
+}
+
+.submit-btn:hover:not(:disabled) svg:last-child:not(.spin) {
+  transform: translateX(3px);
+}
+
+.add-btn:not(.scan-open-btn):hover svg {
+  transform: rotate(90deg);
+}
+
+.scan-open-btn:hover svg {
+  transform: scale(1.12);
+}
+
+/* ---------- Dashboard ---------- */
+
+.dashboard-header {
+  animation: fade-down 0.5s var(--ease-out) backwards;
+}
+
+.dashboard-heading > div:first-child {
+  animation: fade-up 0.6s var(--ease-out) 0.05s backwards;
+}
+
+/* Gap between "Scan business card" and "Add contact" */
+.dashboard-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  animation: fade-up 0.6s var(--ease-out) 0.12s backwards;
+}
+
+.contacts-toolbar {
+  animation: fade-up 0.6s var(--ease-out) 0.18s backwards;
+}
+
+/* Replays every time the number of contacts changes (key on the span) */
+.contacts-count {
+  transform-origin: right center;
+  animation: count-bump 0.4s var(--ease-out);
+}
+
+.logout-btn {
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.logout-btn svg {
+  transition: transform 0.2s var(--ease-out);
+}
+
+.logout-btn:hover {
+  border-color: #c9b8a3;
+}
+
+.logout-btn:hover svg {
+  transform: translateX(2px);
+}
+
+.empty-state {
+  animation: fade-up 0.6s var(--ease-out) 0.1s backwards;
+}
+
+.empty-icon {
+  animation: float 4s ease-in-out infinite;
+}
+
+/* ---------- Contact cards ---------- */
+
+/*
+  "backwards" (not "both") on purpose: after the entrance finishes the card
+  returns to its normal styles, so the hover lift below keeps working.
+  --i is the card index, set in App.tsx, used for the stagger.
+*/
+.contact-card {
+  animation: fade-up 0.55s var(--ease-out) backwards;
+  animation-delay: calc(min(var(--i, 0), 9) * 50ms);
+  transition: transform 0.3s var(--ease-out), box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.contact-avatar {
+  transition: transform 0.3s var(--ease-out), background 0.3s ease;
+}
+
+@media (hover: hover) {
+  .contact-card:hover {
+    transform: translateY(-4px);
+    border-color: #d8c9b6;
+    box-shadow: 0 18px 40px rgba(65, 47, 29, 0.1);
+  }
+
+  .contact-card:hover .contact-avatar {
+    transform: scale(1.07) rotate(-4deg);
+    background: #e7d9c6;
+  }
+}
+
+.contact-actions button,
+.close-btn {
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s var(--ease-out);
+}
+
+.contact-actions button:hover {
+  transform: translateY(-1px);
+}
+
+.contact-actions button:active,
+.close-btn:active {
+  transform: scale(0.94);
+}
+
+/* Delete button turns soft red on hover */
+.contact-actions button:last-child:hover {
+  background: #faf0eb;
+  border-color: #e7cfc5;
+  color: #87503e;
+}
+
+.close-btn:hover {
+  transform: rotate(90deg);
+}
+
+.close-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.close-btn:disabled:hover {
+  transform: none;
+  background: #fffdf9;
+}
+
+/* ---------- Modals ---------- */
+
+.modal-overlay {
+  animation: fade-in 0.22s ease;
+}
+
+.contact-modal {
+  animation: pop-in 0.32s var(--ease-out);
+}
+
+.scanner-option {
+  transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s var(--ease-out), box-shadow 0.25s ease;
+}
+
+.scanner-option svg {
+  transition: transform 0.3s var(--ease-out);
+}
+
+.scanner-option:not(:disabled):hover {
+  box-shadow: 0 12px 28px rgba(65, 47, 29, 0.09);
+}
+
+.scanner-option:not(:disabled):hover svg {
+  transform: scale(1.12) rotate(-4deg);
+}
+
+.scanner-option:not(:disabled):active {
+  transform: translateY(-1px) scale(0.99);
+}
+
+.scanner-option:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.scanner-option:disabled:hover {
+  transform: none;
+  background: #faf6ef;
+  border-color: #e7ded2;
+}
+
+.scanner-progress {
+  animation: fade-up 0.35s var(--ease-out);
+}
+
+/* The fill bar had no styles, so progress was invisible before */
+.progress-track > div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #a58a6b, #70563d, #a58a6b);
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+  transition: width 0.35s ease;
+}
+
+/* ---------- Respect "reduce motion" ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
