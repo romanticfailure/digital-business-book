@@ -1,5 +1,5 @@
 
-import { useEffect, useRef, useState, type FormEvent, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ChangeEvent, type CSSProperties } from 'react'
 import {
   BookOpen, Mail, Lock, ArrowRight, Loader2,
   Search, Plus, LogOut, Pencil, Trash2, X,
@@ -8,6 +8,7 @@ import {
 import { createWorker } from 'tesseract.js'
 import { supabase } from './supabase'
 import './App.css'
+import './animations.css'
 
 type Contact = {
   id: string
@@ -427,7 +428,7 @@ function App() {
           </div>
 
           <div className="auth-card">
-            <div className="card-heading">
+            <div className="card-heading" key={mode}>
               <span className="card-label">WELCOME</span>
               <h2>{mode === 'login' ? 'Welcome back' : 'Create account'}</h2>
               <p>
@@ -554,7 +555,7 @@ function App() {
             />
           </div>
 
-          <span className="contacts-count">
+          <span className="contacts-count" key={contacts.length}>
             {contacts.length} contacts
           </span>
         </div>
@@ -579,8 +580,12 @@ function App() {
           </div>
         ) : (
           <div className="contact-grid">
-            {filteredContacts.map(contact => (
-              <article className="contact-card" key={contact.id}>
+            {filteredContacts.map((contact, index) => (
+              <article
+                className="contact-card"
+                key={contact.id}
+                style={{ '--i': index } as CSSProperties}
+              >
                 <div className="contact-card-top">
                   <div className="contact-avatar">
                     {contact.full_name.charAt(0).toUpperCase()}
