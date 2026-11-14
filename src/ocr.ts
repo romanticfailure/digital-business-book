@@ -3,7 +3,12 @@ import { createWorker } from 'tesseract.js'
 type OcrWorker = Awaited<ReturnType<typeof createWorker>>
 type WorkerParams = Parameters<OcrWorker['setParameters']>[0]
 
-type PassResult = { text: string; confidence: number }
+type Candidate = {
+  text: string
+  confidence: number
+  // How much contact information was found in the text (see `rate` below)
+  signal: number
+}
 
 type Prepared = {
   width: number
@@ -21,9 +26,13 @@ const MIN_SIDE = 1600
 const PSM_AUTO = '3'
 const PSM_SPARSE = '11'
 
-// Confidence (0-100) at which a result is good enough to stop, or bad enough to try harder.
+// Tesseract confidence (0-100) that counts as a clean read.
 const GOOD_CONFIDENCE = 85
-const POOR_CONFIDENCE = 60
+
+// Contact signal: at least an email, a phone number or a proper name was found.
+const FOUND_SIGNAL = 2
+// Contact signal: e.g. email + phone, or email + name. No need to look further.
+const COMPLETE_SIGNAL = 5
 
 /* ---------- Image preparation ---------- */
 
@@ -38,7 +47,7 @@ function loadImage(file: File): Promise<HTMLImageElement> {
     }
     img.onerror = () => {
       URL.revokeObjectURL(url)
-      reject(new Error('Не удалось открыть изображение. Попробуй другое фото.'))
+      reject(new Error('Could not open the image. Please try another photo.'))
     }
 
     img.src = url
@@ -50,7 +59,7 @@ function drawScaled(img: HTMLImageElement) {
   const longest = Math.max(img.naturalWidth, img.naturalHeight)
 
   if (!longest) {
-    throw new Error('Не удалось открыть изображение. Попробуй другое фото.')
+    throw new Error('Could not open the image. Please try another photo.')
   }
 
   const scale =
@@ -68,7 +77,7 @@ function drawScaled(img: HTMLImageElement) {
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
 
   if (!ctx) {
-    throw new Error('Браузер не поддерживает обработку изображений.')
+    throw new Error('Your browser does not support image processing.')
   }
 
   ctx.imageSmoothingQuality = 'high'
@@ -130,21 +139,6 @@ function stretchContrast(gray: Uint8ClampedArray) {
 
   for (let i = 0; i < gray.length; i++) {
     gray[i] = (gray[i] - low) * factor
-  }
-}
-
-// Tesseract expects dark text on a light background; flip light-on-dark cards.
-function normalizePolarity(gray: Uint8ClampedArray) {
-  let total = 0
-
-  for (let i = 0; i < gray.length; i++) {
-    total += gray[i]
-  }
-
-  if (total / gray.length >= 110) return
-
-  for (let i = 0; i < gray.length; i++) {
-    gray[i] = 255 - gray[i]
   }
 }
 
@@ -215,7 +209,7 @@ function grayToBlob(gray: Uint8ClampedArray, width: number, height: number): Pro
   const ctx = canvas.getContext('2d')
 
   if (!ctx) {
-    return Promise.reject(new Error('Браузер не поддерживает обработку изображений.'))
+    return Promise.reject(new Error('Your browser does not support image processing.'))
   }
 
   const image = ctx.createImageData(width, height)
@@ -235,7 +229,7 @@ function grayToBlob(gray: Uint8ClampedArray, width: number, height: number): Pro
       if (blob) {
         resolve(blob)
       } else {
-        reject(new Error('Не удалось подготовить изображение.'))
+        reject(new Error('Could not prepare the image.'))
       }
     }, 'image/png')
   })
@@ -245,9 +239,11 @@ async function prepareImages(file: File): Promise<Prepared> {
   const img = await loadImage(file)
   const { width, height, data } = drawScaled(img)
 
+  // Note: light-on-dark cards are NOT inverted here. A photo with a dark table
+  // around a normal card would be flipped by mistake, and Tesseract 5 already
+  // tries the inverted image on its own.
   const gray = toGray(data)
   stretchContrast(gray)
-  normalizePolarity(gray)
 
   const enhanced = await grayToBlob(gray, width, height)
   const binary = await grayToBlob(adaptiveThreshold(gray, width, height), width, height)
@@ -257,14 +253,19 @@ async function prepareImages(file: File): Promise<Prepared> {
 
 /* ---------- Recognition ---------- */
 
-// More confident results with more real text win.
-function score(result: PassResult) {
-  const characters = (result.text.match(/[\p{L}\p{N}]/gu) ?? []).length
-  return result.confidence * Math.sqrt(characters)
+// Real words and numbers count; stray specks and punctuation from noise do not.
+function textScore(candidate: Candidate) {
+  const tokens = candidate.text.match(/\p{L}{3,}|\d{3,}/gu) ?? []
+  return candidate.confidence * Math.sqrt(tokens.join('').length)
 }
 
-function pickBest(results: PassResult[]) {
-  return results.reduce((best, current) => (score(current) > score(best) ? current : best))
+// More contact information wins first; then a cleaner, longer read.
+function isBetter(a: Candidate, b: Candidate) {
+  return a.signal !== b.signal ? a.signal > b.signal : textScore(a) > textScore(b)
+}
+
+function pickBest(candidates: Candidate[]) {
+  return candidates.reduce((best, current) => (isBetter(current, best) ? current : best))
 }
 
 /**
@@ -273,16 +274,26 @@ function pickBest(results: PassResult[]) {
  * 1. Prepares the image (orientation, size, contrast, shadows).
  * 2. Recognizes with German + English only, so Latin text is not mixed up
  *    with look-alike Cyrillic letters.
- * 3. If the result is weak: tries a binarized copy, then rotated copies,
- *    then Russian/Ukrainian, and keeps the best result.
+ * 3. Unless the result already holds the contact details: tries a binarized
+ *    copy, then rotated copies, then Russian/Ukrainian. Every extra attempt is
+ *    optional: if one fails, the best result so far is kept.
+ *
+ * `rate` scores how much contact information (email, phone, name...) a text
+ * contains, so the best attempt wins by what matters, not by text length.
  */
 export async function recognizeBusinessCard(
   file: File,
   onProgress: (percent: number) => void,
-  onStage: (message: string) => void
+  onStage: (message: string) => void,
+  rate: (text: string) => number
 ): Promise<string> {
-  onStage('Подготавливаем изображение...')
-  const prepared = await prepareImages(file)
+  onStage('Preparing the image...')
+
+  // If preparation fails for any reason, fall back to the original photo.
+  const prepared: Prepared | null = await prepareImages(file).catch(error => {
+    console.warn('Image preparation failed, using the original photo', error)
+    return null
+  })
 
   let planned = 2
   let done = 0
@@ -305,7 +316,7 @@ export async function recognizeBusinessCard(
       },
     })
 
-  const runPass = async (worker: OcrWorker, image: Blob, psm: string): Promise<PassResult> => {
+  const runPass = async (worker: OcrWorker, image: Blob, psm: string): Promise<Candidate> => {
     passProgress = 0
     await worker.setParameters({ tessedit_pageseg_mode: psm } as WorkerParams)
 
@@ -315,47 +326,92 @@ export async function recognizeBusinessCard(
     passProgress = 0
     report()
 
-    return { text: data.text, confidence: data.confidence }
+    return { text: data.text, confidence: data.confidence, signal: rate(data.text) }
   }
 
-  const results: PassResult[] = []
+  const results: Candidate[] = []
 
-  const latinWorker = await openWorker('deu+eng')
+  const attempt = async (job: () => Promise<Candidate>) => {
+    try {
+      results.push(await job())
+    } catch (error) {
+      console.warn('A recognition pass failed', error)
+    }
+  }
+
+  const bestSignal = () => (results.length ? pickBest(results).signal : 0)
+
+  const isGoodEnough = () => {
+    if (!results.length) return false
+
+    const best = pickBest(results)
+
+    return (
+      best.signal >= COMPLETE_SIGNAL ||
+      (best.confidence >= GOOD_CONFIDENCE && best.signal >= FOUND_SIGNAL)
+    )
+  }
+
+  let latinWorker: OcrWorker
 
   try {
-    onStage('Распознаём текст...')
-    results.push(await runPass(latinWorker, prepared.enhanced, PSM_AUTO))
+    latinWorker = await openWorker('deu+eng')
+  } catch (error) {
+    console.warn('Could not start text recognition', error)
+    throw new Error('Could not load the text recognition data. Check your internet connection and try again.')
+  }
 
-    if (pickBest(results).confidence < GOOD_CONFIDENCE) {
-      onStage('Уточняем результат...')
-      results.push(await runPass(latinWorker, prepared.binary, PSM_SPARSE))
+  try {
+    onStage('Reading the text...')
+    await attempt(() => runPass(latinWorker, prepared ? prepared.enhanced : file, PSM_AUTO))
+
+    // The prepared image failed: try the untouched photo.
+    if (!results.length && prepared) {
+      await attempt(() => runPass(latinWorker, file, PSM_AUTO))
     }
 
-    if (pickBest(results).confidence < POOR_CONFIDENCE) {
-      onStage('Проверяем поворот фото...')
+    if (prepared && !isGoodEnough()) {
+      onStage('Refining the result...')
+      await attempt(() => runPass(latinWorker, prepared.binary, PSM_SPARSE))
+    }
+
+    // Nothing useful found: the card may have been photographed sideways.
+    if (prepared && bestSignal() < FOUND_SIGNAL) {
+      onStage('Checking photo rotation...')
       planned = done + 2
 
       for (const clockwise of [true, false]) {
-        const rotated = rotateGray(prepared.gray, prepared.width, prepared.height, clockwise)
-        const blob = await grayToBlob(rotated.gray, rotated.width, rotated.height)
-        results.push(await runPass(latinWorker, blob, PSM_AUTO))
+        await attempt(async () => {
+          const rotated = rotateGray(prepared.gray, prepared.width, prepared.height, clockwise)
+          const blob = await grayToBlob(rotated.gray, rotated.width, rotated.height)
+          return runPass(latinWorker, blob, PSM_AUTO)
+        })
       }
     }
   } finally {
     await latinWorker.terminate()
   }
 
-  if (pickBest(results).confidence < POOR_CONFIDENCE) {
-    onStage('Пробуем другие языки...')
+  // Still nothing: the card may be in Russian or Ukrainian.
+  if (results.length && bestSignal() < FOUND_SIGNAL) {
+    onStage('Trying other languages...')
     planned = done + 1
 
-    const cyrillicWorker = await openWorker('rus+ukr+eng')
-
     try {
-      results.push(await runPass(cyrillicWorker, prepared.enhanced, PSM_AUTO))
-    } finally {
-      await cyrillicWorker.terminate()
+      const cyrillicWorker = await openWorker('rus+ukr+eng')
+
+      try {
+        await attempt(() => runPass(cyrillicWorker, prepared ? prepared.enhanced : file, PSM_AUTO))
+      } finally {
+        await cyrillicWorker.terminate()
+      }
+    } catch (error) {
+      console.warn('Could not run the additional languages', error)
     }
+  }
+
+  if (!results.length) {
+    throw new Error('Text recognition failed. Please try again or use another photo.')
   }
 
   return pickBest(results).text

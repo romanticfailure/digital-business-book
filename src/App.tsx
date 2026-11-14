@@ -154,6 +154,22 @@ function extractContactData(text: string) {
   }
 }
 
+// Rates how much contact information a recognized text holds. The scanner uses
+// it to pick the best of several recognition attempts.
+function contactSignal(text: string) {
+  const data = extractContactData(text)
+  const properName = /^[A-ZÄÖÜ][a-zäöüß-]+(?:\s+[A-ZÄÖÜ][a-zäöüß-]+)+$/.test(data.full_name)
+
+  return (
+    (data.email ? 3 : 0) +
+    (data.phone ? 2 : 0) +
+    (properName ? 2 : data.full_name ? 0.5 : 0) +
+    (data.company ? 1 : 0) +
+    (data.job_title ? 1 : 0) +
+    (data.address ? 1 : 0)
+  )
+}
+
 function App() {
   const [session, setSession] = useState<any>(null)
   const [mode, setMode] = useState<'login' | 'register'>('login')
@@ -229,8 +245,8 @@ function App() {
 
         setMessage(
           data.session
-            ? 'Аккаунт создан!'
-            : 'Проверь почту и подтверди регистрацию.'
+            ? 'Account created!'
+            : 'Check your email and confirm your registration.'
         )
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -241,7 +257,7 @@ function App() {
         if (error) throw error
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Произошла ошибка')
+      setMessage(error instanceof Error ? error.message : 'Something went wrong')
     } finally {
       setLoading(false)
     }
@@ -272,47 +288,50 @@ function App() {
     if (!file) return
 
     if (!file.type.startsWith('image/')) {
-      setScanMessage('Пожалуйста, выбери изображение.')
+      setScanMessage('Please choose an image file.')
       e.target.value = ''
       return
     }
 
     setScanning(true)
     setScanProgress(0)
-    setScanMessage('Подготавливаем распознавание...')
+    setScanMessage('Preparing...')
 
     try {
       const recognizedText = await recognizeBusinessCard(
         file,
         setScanProgress,
-        setScanMessage
+        setScanMessage,
+        contactSignal
       )
 
       if (!recognizedText.trim()) {
-        throw new Error('Не удалось распознать текст. Попробуй другое фото.')
+        throw new Error('No text was found on the photo. Try a sharper photo with good lighting.')
       }
 
       const extracted = extractContactData(recognizedText)
-
-      if (!extracted.full_name && !extracted.email && !extracted.phone) {
-        throw new Error('Текст найден, но контактные данные распознать не удалось. Попробуй более чёткое фото.')
-      }
+      const nothingFound = !extracted.full_name && !extracted.email && !extracted.phone
 
       setEditingId(null)
       setForm({
         ...emptyForm,
         ...extracted,
+        // Nothing could be sorted into fields: keep the raw text so it is not lost
+        notes: nothingFound ? recognizedText.trim().slice(0, 600) : extracted.notes,
       })
 
       setShowScanner(false)
       setShowForm(true)
-      setMessage('Данные распознаны. Проверь их и исправь при необходимости.')
-    } catch (error) {
-      setScanMessage(
-        error instanceof Error
-          ? error.message
-          : 'Не удалось распознать визитку.'
+      setMessage(
+        nothingFound
+          ? 'Contact details could not be detected automatically. The recognized text was added to the notes, please fill in the fields.'
+          : 'Details recognized. Please review them and correct if needed.'
       )
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error.message : typeof error === 'string' ? error : ''
+
+      setScanMessage(reason || 'Could not recognize the business card. Please try again.')
     } finally {
       setScanning(false)
       setScanProgress(0)
@@ -349,14 +368,14 @@ function App() {
       setForm(emptyForm)
       await loadContacts()
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Не удалось сохранить контакт')
+      setMessage(error instanceof Error ? error.message : 'Could not save the contact')
     } finally {
       setSaving(false)
     }
   }
 
   async function deleteContact(id: string) {
-    if (!window.confirm('Удалить этот контакт?')) return
+    if (!window.confirm('Delete this contact?')) return
 
     const { error } = await supabase
       .from('contacts')
@@ -641,7 +660,7 @@ function App() {
                 className={canUseCamera ? 'scanner-option' : 'scanner-option unavailable'}
                 onClick={() => {
                   if (!canUseCamera) {
-                    setScanMessage('С вашего устройства сделать фото недоступно. Загрузите готовое изображение или откройте сайт с телефона.')
+                    setScanMessage('Taking a photo is not available on your device. Upload an existing image or open the site on your phone.')
                     return
                   }
 
