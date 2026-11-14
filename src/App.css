@@ -30,7 +30,8 @@ button {
 
 .auth-page {
   min-height: 100vh;
-  padding: 0 7.5%;
+  /* Content is at most 1360px wide and centered; on small screens 7.5% gutters */
+  padding: 0 max(7.5%, calc((100% - 1360px) / 2));
   display: flex;
   flex-direction: column;
   background:
@@ -83,17 +84,16 @@ button {
 .auth-layout {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 440px;
+  grid-template-columns: 1fr 480px;
   align-items: center;
   gap: 9%;
-  max-width: 1180px;
   width: 100%;
   margin: 0 auto;
   padding: 70px 0;
 }
 
 .intro {
-  max-width: 570px;
+  max-width: 640px;
 }
 
 .eyebrow {
@@ -116,7 +116,7 @@ button {
 .intro h1 {
   margin: 27px 0 22px;
   font-family: 'Manrope', sans-serif;
-  font-size: clamp(38px, 5vw, 62px);
+  font-size: clamp(38px, 5vw, 66px);
   line-height: 1.13;
   letter-spacing: -3.5px;
   font-weight: 800;
@@ -128,7 +128,7 @@ button {
 }
 
 .intro-text {
-  max-width: 420px;
+  max-width: 460px;
   color: #625648;
   font-size: 15px;
   line-height: 1.9;
@@ -326,7 +326,8 @@ footer {
 
 .dashboard-header {
   min-height: 82px;
-  padding: 0 7.5%;
+  /* Same gutters as .dashboard-content so both line up on wide screens */
+  padding: 0 max(7.5%, calc((100% - 1360px) / 2));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -360,7 +361,7 @@ footer {
 }
 
 .dashboard-content {
-  max-width: 1180px;
+  max-width: 1360px;
   width: 85%;
   margin: 0 auto;
   padding: 65px 0;
