@@ -1,4 +1,4 @@
-﻿
+
 import { useEffect, useRef, useState, type FormEvent, type ChangeEvent, type CSSProperties } from 'react'
 import {
   BookOpen, Mail, Lock, ArrowRight, Loader2,
@@ -42,6 +42,10 @@ const canUseCamera =
     // iPadOS reports itself as a Mac, but has a touch screen
     (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1))
 
+// Note: German letters (umlauts and the sharp s) in the regular expressions
+// below are written as unicode escape sequences instead of the literal
+// characters, on purpose. That keeps this file plain ASCII, so an editor that
+// saves it in the wrong encoding cannot corrupt them.
 function extractContactData(text: string) {
   const lines = text
     .split(/\r?\n/)
@@ -55,14 +59,14 @@ function extractContactData(text: string) {
     lines.find(line => /www\.|https?:\/\//i.test(line)) || ''
 
   const jobPattern =
-    /\b(geschÃ¤ftsfÃ¼hrer(?:in)?|geschaeftsfuehrer(?:in)?|geschÃ¤ftsleitung|inhaber(?:in)?|ceo|coo|cto|cfo|manager(?:in)?|director|managing director|sales manager|account manager|project manager|marketing manager|vertrieb|verkauf|leiter(?:in)?|abteilungsleiter(?:in)?|entwickler(?:in)?|engineer|consultant|berater(?:in)?|designer(?:in)?|assistant|assistent(?:in)?|sekretÃ¤r(?:in)?|sekretaer(?:in)?|owner|founder|partner|techniker(?:in)?|meister(?:in)?|monteur(?:in)?|handwerker(?:in)?)\b/i
+    /\b(gesch\u00e4ftsf\u00fchrer(?:in)?|geschaeftsfuehrer(?:in)?|gesch\u00e4ftsleitung|inhaber(?:in)?|ceo|coo|cto|cfo|manager(?:in)?|director|managing director|sales manager|account manager|project manager|marketing manager|vertrieb|verkauf|leiter(?:in)?|abteilungsleiter(?:in)?|entwickler(?:in)?|engineer|consultant|berater(?:in)?|designer(?:in)?|assistant|assistent(?:in)?|sekret\u00e4r(?:in)?|sekretaer(?:in)?|owner|founder|partner|techniker(?:in)?|meister(?:in)?|monteur(?:in)?|handwerker(?:in)?)\b/i
 
   const job_title = lines.find(line =>
     jobPattern.test(line)
   ) || ''
 
   const companyPattern =
-    /\b(gmbh|gmbh\s*&\s*co\.?\s*kg|ag|ug|haftungsbeschrÃ¤nkt|haftungsbeschraenkt|kg|ohg|gbr|e\.?k\.?|ltd|llc|inc|corp|corporation|company|group|solutions|consulting|services|industrie|technik|bau|logistik|automotive|systems)\b/i
+    /\b(gmbh|gmbh\s*&\s*co\.?\s*kg|ag|ug|haftungsbeschr\u00e4nkt|haftungsbeschraenkt|kg|ohg|gbr|e\.?k\.?|ltd|llc|inc|corp|corporation|company|group|solutions|consulting|services|industrie|technik|bau|logistik|automotive|systems)\b/i
 
   const excluded =
     /email|e-mail|telefon|phone|mobile|mobil|tel\.?|fax|www\.|https?:|@|kontakt|contact/i
@@ -73,11 +77,11 @@ function extractContactData(text: string) {
   ) || ''
 
   const addressPattern =
-    /\b(strasse|straÃŸe|str\.|street|road|avenue|platz|weg|allee|gasse|ring|boulevard|blvd)\b/i
+    /\b(strasse|stra\u00dfe|str\.|street|road|avenue|platz|weg|allee|gasse|ring|boulevard|blvd)\b/i
 
   const addressLine = lines.find(line =>
     addressPattern.test(line) ||
-    /\b\d{5}\s+[A-ZÃ„Ã–Ãœ]/i.test(line)
+    /\b\d{5}\s+[A-Z\u00c4\u00d6\u00dc]/i.test(line)
   ) || ''
 
   const phoneCandidates = lines.filter(line =>
@@ -115,7 +119,7 @@ function extractContactData(text: string) {
       return (
         words.length >= 2 &&
         words.length <= 4 &&
-        /^[A-ZÃ„Ã–Ãœ][a-zÃ¤Ã¶Ã¼ÃŸ-]+(?:\s+[A-ZÃ„Ã–Ãœ][a-zÃ¤Ã¶Ã¼ÃŸ-]+)+$/.test(line)
+        /^[A-Z\u00c4\u00d6\u00dc][a-z\u00e4\u00f6\u00fc\u00df-]+(?:\s+[A-Z\u00c4\u00d6\u00dc][a-z\u00e4\u00f6\u00fc\u00df-]+)+$/.test(line)
       )
     }) ||
     cleanLines[0] ||
@@ -158,7 +162,7 @@ function extractContactData(text: string) {
 // it to pick the best of several recognition attempts.
 function contactSignal(text: string) {
   const data = extractContactData(text)
-  const properName = /^[A-ZÃ„Ã–Ãœ][a-zÃ¤Ã¶Ã¼ÃŸ-]+(?:\s+[A-ZÃ„Ã–Ãœ][a-zÃ¤Ã¶Ã¼ÃŸ-]+)+$/.test(data.full_name)
+  const properName = /^[A-Z\u00c4\u00d6\u00dc][a-z\u00e4\u00f6\u00fc\u00df-]+(?:\s+[A-Z\u00c4\u00d6\u00dc][a-z\u00e4\u00f6\u00fc\u00df-]+)+$/.test(data.full_name)
 
   return (
     (data.email ? 3 : 0) +
@@ -260,7 +264,13 @@ function App() {
         if (error) throw error
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Something went wrong')
+      const reason = error instanceof Error ? error.message : ''
+
+      setMessage(
+        /email not confirmed/i.test(reason)
+          ? 'Your email is not confirmed yet. Open the confirmation link we sent you, then sign in.'
+          : reason || 'Something went wrong'
+      )
     } finally {
       setLoading(false)
     }
