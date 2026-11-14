@@ -1,4 +1,4 @@
-
+﻿
 import { useEffect, useRef, useState, type FormEvent, type ChangeEvent, type CSSProperties } from 'react'
 import {
   BookOpen, Mail, Lock, ArrowRight, Loader2,
@@ -55,14 +55,14 @@ function extractContactData(text: string) {
     lines.find(line => /www\.|https?:\/\//i.test(line)) || ''
 
   const jobPattern =
-    /\b(geschäftsführer(?:in)?|geschaeftsfuehrer(?:in)?|geschäftsleitung|inhaber(?:in)?|ceo|coo|cto|cfo|manager(?:in)?|director|managing director|sales manager|account manager|project manager|marketing manager|vertrieb|verkauf|leiter(?:in)?|abteilungsleiter(?:in)?|entwickler(?:in)?|engineer|consultant|berater(?:in)?|designer(?:in)?|assistant|assistent(?:in)?|sekretär(?:in)?|sekretaer(?:in)?|owner|founder|partner|techniker(?:in)?|meister(?:in)?|monteur(?:in)?|handwerker(?:in)?)\b/i
+    /\b(geschÃ¤ftsfÃ¼hrer(?:in)?|geschaeftsfuehrer(?:in)?|geschÃ¤ftsleitung|inhaber(?:in)?|ceo|coo|cto|cfo|manager(?:in)?|director|managing director|sales manager|account manager|project manager|marketing manager|vertrieb|verkauf|leiter(?:in)?|abteilungsleiter(?:in)?|entwickler(?:in)?|engineer|consultant|berater(?:in)?|designer(?:in)?|assistant|assistent(?:in)?|sekretÃ¤r(?:in)?|sekretaer(?:in)?|owner|founder|partner|techniker(?:in)?|meister(?:in)?|monteur(?:in)?|handwerker(?:in)?)\b/i
 
   const job_title = lines.find(line =>
     jobPattern.test(line)
   ) || ''
 
   const companyPattern =
-    /\b(gmbh|gmbh\s*&\s*co\.?\s*kg|ag|ug|haftungsbeschränkt|haftungsbeschraenkt|kg|ohg|gbr|e\.?k\.?|ltd|llc|inc|corp|corporation|company|group|solutions|consulting|services|industrie|technik|bau|logistik|automotive|systems)\b/i
+    /\b(gmbh|gmbh\s*&\s*co\.?\s*kg|ag|ug|haftungsbeschrÃ¤nkt|haftungsbeschraenkt|kg|ohg|gbr|e\.?k\.?|ltd|llc|inc|corp|corporation|company|group|solutions|consulting|services|industrie|technik|bau|logistik|automotive|systems)\b/i
 
   const excluded =
     /email|e-mail|telefon|phone|mobile|mobil|tel\.?|fax|www\.|https?:|@|kontakt|contact/i
@@ -73,11 +73,11 @@ function extractContactData(text: string) {
   ) || ''
 
   const addressPattern =
-    /\b(strasse|straße|str\.|street|road|avenue|platz|weg|allee|gasse|ring|boulevard|blvd)\b/i
+    /\b(strasse|straÃŸe|str\.|street|road|avenue|platz|weg|allee|gasse|ring|boulevard|blvd)\b/i
 
   const addressLine = lines.find(line =>
     addressPattern.test(line) ||
-    /\b\d{5}\s+[A-ZÄÖÜ]/i.test(line)
+    /\b\d{5}\s+[A-ZÃ„Ã–Ãœ]/i.test(line)
   ) || ''
 
   const phoneCandidates = lines.filter(line =>
@@ -115,7 +115,7 @@ function extractContactData(text: string) {
       return (
         words.length >= 2 &&
         words.length <= 4 &&
-        /^[A-ZÄÖÜ][a-zäöüß-]+(?:\s+[A-ZÄÖÜ][a-zäöüß-]+)+$/.test(line)
+        /^[A-ZÃ„Ã–Ãœ][a-zÃ¤Ã¶Ã¼ÃŸ-]+(?:\s+[A-ZÃ„Ã–Ãœ][a-zÃ¤Ã¶Ã¼ÃŸ-]+)+$/.test(line)
       )
     }) ||
     cleanLines[0] ||
@@ -158,7 +158,7 @@ function extractContactData(text: string) {
 // it to pick the best of several recognition attempts.
 function contactSignal(text: string) {
   const data = extractContactData(text)
-  const properName = /^[A-ZÄÖÜ][a-zäöüß-]+(?:\s+[A-ZÄÖÜ][a-zäöüß-]+)+$/.test(data.full_name)
+  const properName = /^[A-ZÃ„Ã–Ãœ][a-zÃ¤Ã¶Ã¼ÃŸ-]+(?:\s+[A-ZÃ„Ã–Ãœ][a-zÃ¤Ã¶Ã¼ÃŸ-]+)+$/.test(data.full_name)
 
   return (
     (data.email ? 3 : 0) +
@@ -239,6 +239,9 @@ function App() {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            emailRedirectTo: 'https://romanticfailure.github.io/digital-business-book/',
+          },
         })
 
         if (error) throw error
@@ -790,3 +793,4 @@ function App() {
 }
 
 export default App
+
