@@ -3,35 +3,40 @@ import { useEffect, useRef, useState, type FormEvent, type ChangeEvent, type CSS
 import {
   BookOpen, Mail, Lock, ArrowRight, Loader2,
   Search, Plus, LogOut, Pencil, Trash2, X,
-  ScanLine, Camera, ImagePlus
+  ScanLine, Camera, ImagePlus,
+  Star, Download, Phone, Tag, CalendarClock, Sparkles
 } from 'lucide-react'
 import { recognizeBusinessCard } from './ocr'
 import { supabase } from './supabase'
 import './App.css'
 import './animations.css'
+import './features.css'
+import { DEFAULT_CATEGORIES, normalizeCategory, suggestCategory } from './categories'
+import {
+  SORT_LABELS, categoryOf, contactText, countByCategory, emptyForm,
+  findDuplicate, followUpState, formatDate, groupByCategory, isSortMode, sortContacts,
+  type Contact, type ContactForm, type SortMode
+} from './contacts'
+import { downloadAllVCards, downloadCsv, downloadVCard } from './exportContacts'
 
-type Contact = {
-  id: string
-  user_id: string
-  full_name: string
-  company: string | null
-  job_title: string | null
-  phone: string | null
-  email: string | null
-  address: string | null
-  notes: string | null
-  image_url: string | null
-  created_at: string
+const FILTER_ALL = '__all'
+const FILTER_FAVORITES = '__favorites'
+const FILTER_FOLLOW_UP = '__follow_up'
+
+function readStored(key: string): string {
+  try {
+    return window.localStorage.getItem(key) || ''
+  } catch {
+    return ''
+  }
 }
 
-const emptyForm = {
-  full_name: '',
-  company: '',
-  job_title: '',
-  phone: '',
-  email: '',
-  address: '',
-  notes: '',
+function writeStored(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value)
+  } catch {
+    // Storage can be blocked: the choice just is not remembered
+  }
 }
 
 // The camera option only makes sense on phones and tablets. On a computer the
@@ -186,7 +191,16 @@ function App() {
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState<ContactForm>(emptyForm)
+  const [extrasReady, setExtrasReady] = useState(true)
+  const [activeFilter, setActiveFilter] = useState(FILTER_ALL)
+  const [sortMode, setSortMode] = useState<SortMode>(() => {
+    const stored = readStored('book-sort')
+
+    return isSortMode(stored) ? stored : 'newest'
+  })
+  const [groupView, setGroupView] = useState(() => readStored('book-group') !== 'off')
+  const [sorting, setSorting] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const [showScanner, setShowScanner] = useState(false)
@@ -230,7 +244,18 @@ function App() {
       return
     }
 
-    setContacts(data || [])
+    const rows = (data || []) as Contact[]
+
+    // Rows of a database without the update have no topic column at all
+    if (rows.length > 0) {
+      setExtrasReady('category' in rows[0])
+    } else {
+      const probe = await supabase.from('contacts').select('category').limit(1)
+
+      setExtrasReady(!probe.error)
+    }
+
+    setContacts(rows)
   }
 
   async function handleAuth(e: FormEvent) {
@@ -292,6 +317,10 @@ function App() {
       email: contact.email || '',
       address: contact.address || '',
       notes: contact.notes || '',
+      category: contact.category || '',
+      phone_secondary: contact.phone_secondary || '',
+      met_at: contact.met_at || '',
+      follow_up_date: contact.follow_up_date || '',
     })
     setShowForm(true)
   }
@@ -329,6 +358,7 @@ function App() {
       setForm({
         ...emptyForm,
         ...extracted,
+        category: suggestCategory(recognizedText),
         // Nothing could be sorted into fields: keep the raw text so it is not lost
         notes: nothingFound ? recognizedText.trim().slice(0, 600) : extracted.notes,
       })
@@ -360,19 +390,39 @@ function App() {
     setMessage('')
 
     try {
-      const contactData = {
-        ...form,
-        user_id: session.user.id,
+      const duplicate = findDuplicate(contacts, form, editingId)
+
+      if (
+        duplicate &&
+        !window.confirm(`"${duplicate.full_name}" looks like a contact you already have. Save anyway?`)
+      ) {
+        return
       }
 
-      const result = editingId
-        ? await supabase
-            .from('contacts')
-            .update(contactData)
-            .eq('id', editingId)
-        : await supabase
-            .from('contacts')
-            .insert(contactData)
+      const { category, phone_secondary, met_at, follow_up_date, ...basics } = form
+      const extras = {
+        category: normalizeCategory(category, knownCategories) || null,
+        phone_secondary,
+        met_at,
+        follow_up_date: follow_up_date || null,
+      }
+
+      const write = (data: Record<string, unknown>) =>
+        editingId
+          ? supabase.from('contacts').update(data).eq('id', editingId)
+          : supabase.from('contacts').insert(data)
+
+      let result = await write({
+        ...basics,
+        ...(extrasReady ? extras : {}),
+        user_id: session.user.id,
+      })
+
+      // The database update was not run yet: save the basics so nothing is lost
+      if (result.error && extrasReady && /category|is_favorite|phone_secondary|met_at|follow_up_date|schema cache/i.test(result.error.message)) {
+        setExtrasReady(false)
+        result = await write({ ...basics, user_id: session.user.id })
+      }
 
       if (result.error) throw result.error
 
@@ -407,17 +457,183 @@ function App() {
     await supabase.auth.signOut()
   }
 
-  const filteredContacts = contacts.filter(contact => {
-    const query = search.toLowerCase()
+  async function toggleFavorite(contact: Contact) {
+    const { error } = await supabase
+      .from('contacts')
+      .update({ is_favorite: !contact.is_favorite })
+      .eq('id', contact.id)
 
-    return [
-      contact.full_name,
-      contact.company,
-      contact.job_title,
-      contact.email,
-      contact.phone,
-    ].some(value => value?.toLowerCase().includes(query))
+    if (error) {
+      setMessage(error.message)
+      return
+    }
+
+    await loadContacts()
+  }
+
+  // Gives a topic to every contact that has none, based on the words on its card
+  async function autoSortContacts() {
+    const targets = contacts
+      .filter(contact => !contact.category?.trim())
+      .map(contact => ({ contact, topic: suggestCategory(contactText(contact)) }))
+      .filter(item => item.topic)
+
+    if (targets.length === 0) {
+      setMessage('No new topics could be detected. Open a contact and choose a topic by hand.')
+      return
+    }
+
+    setSorting(true)
+    setMessage('')
+
+    const results = await Promise.all(
+      targets.map(({ contact, topic }) =>
+        supabase.from('contacts').update({ category: topic }).eq('id', contact.id)
+      )
+    )
+    const failed = results.filter(result => result.error).length
+
+    await loadContacts()
+    setSorting(false)
+    setMessage(
+      failed
+        ? `Sorted ${targets.length - failed} contacts, ${failed} could not be updated.`
+        : `Sorted ${targets.length} contacts by topic.`
+    )
+  }
+
+  const knownCategories = [
+    ...new Set([
+      ...DEFAULT_CATEGORIES,
+      ...contacts.map(contact => contact.category?.trim() || '').filter(Boolean),
+    ]),
+  ]
+
+  const needsFollowUp = (contact: Contact) => {
+    const state = followUpState(contact.follow_up_date)
+
+    return state === 'overdue' || state === 'today' || state === 'soon'
+  }
+
+  const filteredContacts = contacts.filter(contact => {
+    const query = search.trim().toLowerCase()
+
+    const matchesSearch =
+      !query ||
+      [
+        contact.full_name,
+        contact.company,
+        contact.job_title,
+        contact.email,
+        contact.phone,
+        contact.phone_secondary,
+        contact.category,
+        contact.met_at,
+        contact.notes,
+      ].some(value => value?.toLowerCase().includes(query))
+
+    if (!matchesSearch) return false
+    if (activeFilter === FILTER_ALL) return true
+    if (activeFilter === FILTER_FAVORITES) return !!contact.is_favorite
+    if (activeFilter === FILTER_FOLLOW_UP) return needsFollowUp(contact)
+
+    return categoryOf(contact) === activeFilter
   })
+
+  const visibleContacts = sortContacts(filteredContacts, sortMode)
+  const groups = extrasReady && groupView ? groupByCategory(visibleContacts) : null
+  const topicCounts = countByCategory(contacts)
+  const favoriteCount = contacts.filter(contact => contact.is_favorite).length
+  const followUpCount = contacts.filter(needsFollowUp).length
+  const uncategorizedCount = contacts.filter(contact => !contact.category?.trim()).length
+
+  function renderCard(contact: Contact, index: number) {
+    const state = followUpState(contact.follow_up_date)
+    const phoneLink = (value: string) => `tel:${value.replace(/[^\d+]/g, '')}`
+
+    return (
+      <article
+        className="contact-card"
+        key={contact.id}
+        style={{ '--i': index } as CSSProperties}
+      >
+        <div className="contact-card-top">
+          <div className="contact-avatar">
+            {contact.full_name.charAt(0).toUpperCase()}
+          </div>
+          <div className="contact-actions">
+            {extrasReady && (
+              <button
+                className={contact.is_favorite ? 'favorite-btn active' : 'favorite-btn'}
+                onClick={() => toggleFavorite(contact)}
+                title={contact.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                <Star size={16} />
+              </button>
+            )}
+            <button onClick={() => openEditContact(contact)} title="Edit">
+              <Pencil size={16} />
+            </button>
+            <button onClick={() => deleteContact(contact.id)} title="Delete">
+              <Trash2 size={16} />
+            </button>
+          </div>
+        </div>
+
+        <h3>{contact.full_name}</h3>
+        {contact.job_title && <p className="contact-role">{contact.job_title}</p>}
+        {contact.company && <p className="contact-company">{contact.company}</p>}
+
+        {(contact.category || state === 'overdue' || state === 'today' || state === 'soon') && (
+          <div className="card-badges">
+            {contact.category && (
+              <button
+                className="topic-badge"
+                onClick={() => setActiveFilter(contact.category as string)}
+                title="Show this topic only"
+              >
+                <Tag size={12} /> {contact.category}
+              </button>
+            )}
+            {state && state !== 'later' && (
+              <span className={`followup-badge ${state}`}>
+                <CalendarClock size={12} />
+                {state === 'overdue' ? 'Overdue: ' : state === 'today' ? 'Today: ' : 'Follow up: '}
+                {formatDate(contact.follow_up_date)}
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="contact-details">
+          {contact.email && <p><Mail size={15} /> {contact.email}</p>}
+          {contact.phone && <p><span className="detail-phone">TEL</span> {contact.phone}</p>}
+          {contact.phone_secondary && <p><span className="detail-phone">TEL</span> {contact.phone_secondary}</p>}
+          {contact.address && <p><span className="detail-phone">LOC</span> {contact.address}</p>}
+          {contact.met_at && <p><span className="detail-phone">MET</span> {contact.met_at}</p>}
+        </div>
+
+        {contact.notes && <p className="contact-notes">{contact.notes}</p>}
+
+        <div className="card-footer">
+          <span className="card-date">
+            {state === 'later' ? `Follow up ${formatDate(contact.follow_up_date)}` : `Added ${formatDate(contact.created_at)}`}
+          </span>
+          <div className="quick-actions">
+            {contact.email && (
+              <a href={`mailto:${contact.email}`} title="Send email"><Mail size={15} /></a>
+            )}
+            {contact.phone && (
+              <a href={phoneLink(contact.phone)} title="Call"><Phone size={15} /></a>
+            )}
+            <button onClick={() => downloadVCard(contact)} title="Save to phone contacts (vCard)">
+              <Download size={15} />
+            </button>
+          </div>
+        </div>
+      </article>
+    )
+  }
 
   if (!session) {
     return (
@@ -589,18 +805,113 @@ function App() {
           </span>
         </div>
 
+        {contacts.length > 0 && (
+          <div className="tools-row">
+            <label className="sort-control">
+              <span>Sort</span>
+              <select
+                value={sortMode}
+                onChange={e => {
+                  const value = e.target.value
+
+                  if (isSortMode(value)) {
+                    setSortMode(value)
+                    writeStored('book-sort', value)
+                  }
+                }}
+              >
+                {(Object.keys(SORT_LABELS) as SortMode[]).map(mode => (
+                  <option key={mode} value={mode}>{SORT_LABELS[mode]}</option>
+                ))}
+              </select>
+            </label>
+
+            {extrasReady && (
+              <label className="group-toggle">
+                <input
+                  type="checkbox"
+                  checked={groupView}
+                  onChange={e => {
+                    setGroupView(e.target.checked)
+                    writeStored('book-group', e.target.checked ? 'on' : 'off')
+                  }}
+                />
+                <span>Group by topic</span>
+              </label>
+            )}
+
+            <div className="tools-spacer" />
+
+            {extrasReady && uncategorizedCount > 0 && (
+              <button className="tool-btn" onClick={autoSortContacts} disabled={sorting}>
+                {sorting ? <Loader2 className="spin" size={15} /> : <Sparkles size={15} />}
+                Auto-sort by topic ({uncategorizedCount})
+              </button>
+            )}
+            <button className="tool-btn" onClick={() => downloadCsv(visibleContacts)}>
+              <Download size={15} /> CSV
+            </button>
+            <button className="tool-btn" onClick={() => downloadAllVCards(visibleContacts)}>
+              <Download size={15} /> vCard
+            </button>
+          </div>
+        )}
+
+        {extrasReady && contacts.length > 0 && (
+          <div className="filter-chips">
+            <button
+              className={activeFilter === FILTER_ALL ? 'chip active' : 'chip'}
+              onClick={() => setActiveFilter(FILTER_ALL)}
+            >
+              All <span>{contacts.length}</span>
+            </button>
+            {favoriteCount > 0 && (
+              <button
+                className={activeFilter === FILTER_FAVORITES ? 'chip active' : 'chip'}
+                onClick={() => setActiveFilter(FILTER_FAVORITES)}
+              >
+                Favorites <span>{favoriteCount}</span>
+              </button>
+            )}
+            {followUpCount > 0 && (
+              <button
+                className={activeFilter === FILTER_FOLLOW_UP ? 'chip active' : 'chip'}
+                onClick={() => setActiveFilter(FILTER_FOLLOW_UP)}
+              >
+                Follow-up <span>{followUpCount}</span>
+              </button>
+            )}
+            {topicCounts.map(topic => (
+              <button
+                key={topic.name}
+                className={activeFilter === topic.name ? 'chip active' : 'chip'}
+                onClick={() => setActiveFilter(topic.name)}
+              >
+                {topic.name} <span>{topic.count}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {message && <div className="message dashboard-message">{message}</div>}
 
-        {filteredContacts.length === 0 ? (
+        {!extrasReady && (
+          <div className="message dashboard-message">
+            Topics and extra card fields need a one-time database update. Run
+            supabase/contact-extras.sql in the Supabase SQL Editor, then reload this page.
+          </div>
+        )}
+
+        {visibleContacts.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon"><BookOpen size={28} /></div>
-            <h2>{search ? 'No contacts found' : 'Your book is empty'}</h2>
+            <h2>{search || activeFilter !== FILTER_ALL ? 'No contacts found' : 'Your book is empty'}</h2>
             <p>
-              {search
-                ? 'Try another search.'
+              {search || activeFilter !== FILTER_ALL
+                ? 'Try another search or filter.'
                 : 'Add your first contact to start building your address book.'}
             </p>
-            {!search && (
+            {!search && activeFilter === FILTER_ALL && (
               <button className="add-btn" onClick={openNewContact}>
                 <Plus size={18} />
                 Add your first contact
@@ -608,41 +919,22 @@ function App() {
             )}
           </div>
         ) : (
-          <div className="contact-grid">
-            {filteredContacts.map((contact, index) => (
-              <article
-                className="contact-card"
-                key={contact.id}
-                style={{ '--i': index } as CSSProperties}
-              >
-                <div className="contact-card-top">
-                  <div className="contact-avatar">
-                    {contact.full_name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="contact-actions">
-                    <button onClick={() => openEditContact(contact)} title="Edit">
-                      <Pencil size={16} />
-                    </button>
-                    <button onClick={() => deleteContact(contact.id)} title="Delete">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
+          groups ? (
+            groups.map(group => (
+              <section className="topic-section" key={group.name}>
+                <h2 className="topic-heading">
+                  {group.name} <span>{group.items.length}</span>
+                </h2>
+                <div className="contact-grid">
+                  {group.items.map(renderCard)}
                 </div>
-
-                <h3>{contact.full_name}</h3>
-                {contact.job_title && <p className="contact-role">{contact.job_title}</p>}
-                {contact.company && <p className="contact-company">{contact.company}</p>}
-
-                <div className="contact-details">
-                  {contact.email && <p><Mail size={15} /> {contact.email}</p>}
-                  {contact.phone && <p><span className="detail-phone">TEL</span> {contact.phone}</p>}
-                  {contact.address && <p><span className="detail-phone">LOC</span> {contact.address}</p>}
-                </div>
-
-                {contact.notes && <p className="contact-notes">{contact.notes}</p>}
-              </article>
-            ))}
-          </div>
+              </section>
+            ))
+          ) : (
+            <div className="contact-grid">
+              {visibleContacts.map(renderCard)}
+            </div>
+          )
         )}
       </section>
 
@@ -769,10 +1061,20 @@ function App() {
                 </div>
               </div>
 
-              <label>Phone</label>
-              <input className="form-input" value={form.phone}
-                onChange={e => setForm({ ...form, phone: e.target.value })}
-                placeholder="+49 ..." />
+              <div className="form-row">
+                <div>
+                  <label>Phone</label>
+                  <input className="form-input" value={form.phone}
+                    onChange={e => setForm({ ...form, phone: e.target.value })}
+                    placeholder="+49 ..." />
+                </div>
+                <div>
+                  <label>Second phone</label>
+                  <input className="form-input" value={form.phone_secondary}
+                    onChange={e => setForm({ ...form, phone_secondary: e.target.value })}
+                    placeholder="Mobile or fax" />
+                </div>
+              </div>
 
               <label>Email</label>
               <input className="form-input" type="email" value={form.email}
@@ -783,6 +1085,32 @@ function App() {
               <input className="form-input" value={form.address}
                 onChange={e => setForm({ ...form, address: e.target.value })}
                 placeholder="Address" />
+
+              {extrasReady && (
+                <>
+                  <label>Topic</label>
+                  <input className="form-input" list="topic-options" value={form.category}
+                    onChange={e => setForm({ ...form, category: e.target.value })}
+                    placeholder="Doors, Windows, Sport, Work..." />
+                  <datalist id="topic-options">
+                    {knownCategories.map(name => <option key={name} value={name} />)}
+                  </datalist>
+
+                  <div className="form-row">
+                    <div>
+                      <label>Met at</label>
+                      <input className="form-input" value={form.met_at}
+                        onChange={e => setForm({ ...form, met_at: e.target.value })}
+                        placeholder="Trade fair, event..." />
+                    </div>
+                    <div>
+                      <label>Follow-up date</label>
+                      <input className="form-input" type="date" value={form.follow_up_date}
+                        onChange={e => setForm({ ...form, follow_up_date: e.target.value })} />
+                    </div>
+                  </div>
+                </>
+              )}
 
               <label>Notes</label>
               <textarea className="form-input form-textarea" value={form.notes}

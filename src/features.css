@@ -1,0 +1,221 @@
+/* Topics, filters, sorting and extra card details. Loaded after the other
+   stylesheets and uses its own class names, same palette as the rest. */
+
+.tools-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin: 0 0 14px;
+}
+
+.tools-spacer { flex: 1; }
+
+.sort-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #756552;
+  font-size: 12px;
+}
+
+.sort-control select {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #ded4c6;
+  border-radius: 8px;
+  background: #fffdf9;
+  color: #302820;
+  font: inherit;
+  font-size: 12px;
+}
+
+.sort-control select:focus {
+  outline: none;
+  border-color: #987653;
+}
+
+.group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: #594d40;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.group-toggle input { accent-color: #70563d; }
+
+.tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 13px;
+  border: 1px solid #ded4c6;
+  border-radius: 8px;
+  background: #fffdf9;
+  color: #594d40;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.tool-btn:hover:not(:disabled) { background: #f0e9df; }
+.tool-btn:active:not(:disabled) { transform: scale(0.97); }
+.tool-btn:disabled { opacity: 0.6; cursor: default; }
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 22px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px solid #ded4c6;
+  border-radius: 999px;
+  background: #fffdf9;
+  color: #594d40;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.chip span {
+  color: #987653;
+  font-size: 11px;
+}
+
+.chip:hover { background: #f0e9df; }
+
+.chip.active {
+  border-color: #70563d;
+  background: #70563d;
+  color: #fffdf9;
+}
+
+.chip.active span { color: #e7ded2; }
+
+.topic-section { margin: 0 0 34px; }
+
+.topic-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e7ded2;
+  color: #302820;
+  font-family: 'Manrope', sans-serif;
+  font-size: 17px;
+  text-align: left;
+}
+
+.topic-heading span {
+  color: #987653;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.contact-actions button.favorite-btn.active {
+  border-color: #c9a45c;
+  background: #f6ecd6;
+  color: #b8872b;
+}
+
+.contact-actions button.favorite-btn.active svg { fill: currentColor; }
+
+.card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 2px;
+}
+
+.topic-badge,
+.followup-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 11px;
+}
+
+.topic-badge {
+  background: #eee5d8;
+  color: #6a4f33;
+  cursor: pointer;
+}
+
+.topic-badge:hover { background: #e4d6c3; }
+
+.followup-badge.soon,
+.followup-badge.today {
+  background: #f6ecd6;
+  color: #8a6420;
+}
+
+.followup-badge.overdue {
+  background: #f3dfd8;
+  color: #8f3b27;
+}
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #eee7dd;
+}
+
+.card-date {
+  color: #8a7a68;
+  font-size: 11px;
+}
+
+.quick-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.quick-actions a,
+.quick-actions button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #e7ded2;
+  border-radius: 8px;
+  background: #fffdf9;
+  color: #705f4d;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.quick-actions a:hover,
+.quick-actions button:hover { background: #f0e9df; }
+
+.quick-actions a:active,
+.quick-actions button:active { transform: scale(0.93); }
+
+@media (max-width: 680px) {
+  .tools-spacer { display: none; }
+  .tools-row { gap: 8px; }
+}

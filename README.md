@@ -73,3 +73,10 @@ export default defineConfig([
 ])
 
 ```
+
+## Topics and extra card fields (one-time database update)
+
+Topics (Doors, Windows, Sport, ...), favorites, second phone, "met at" and follow-up dates
+need a few new columns. Run `supabase/contact-extras.sql` once in the Supabase dashboard
+(SQL Editor -> New query -> paste -> Run). Until then the site keeps working and shows a hint;
+nothing is lost. After the update, use "Auto-sort by topic" to sort the contacts you already have.
