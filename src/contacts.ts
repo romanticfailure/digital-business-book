@@ -19,6 +19,7 @@ export type Contact = {
   phone_secondary?: string | null
   met_at?: string | null
   follow_up_date?: string | null
+  introduced_by?: string | null
 }
 
 export type ContactForm = {
@@ -33,6 +34,7 @@ export type ContactForm = {
   phone_secondary: string
   met_at: string
   follow_up_date: string
+  introduced_by: string
 }
 
 export const emptyForm: ContactForm = {
@@ -47,6 +49,7 @@ export const emptyForm: ContactForm = {
   phone_secondary: '',
   met_at: '',
   follow_up_date: '',
+  introduced_by: '',
 }
 
 // Columns that only exist after the database update.

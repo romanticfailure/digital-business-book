@@ -219,3 +219,170 @@
   .tools-spacer { display: none; }
   .tools-row { gap: 8px; }
 }
+
+/* Relationship map */
+.view-switch {
+  margin: 0 0 16px;
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid #ded4c6;
+  border-radius: 10px;
+  background: #fffdf9;
+}
+
+.view-switch button {
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #594d40;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.view-switch button.active {
+  background: #70563d;
+  color: #fffdf9;
+}
+
+.relation-map {
+  border: 1px solid #e7ded2;
+  border-radius: 14px;
+  background: #fffdf9;
+  overflow: hidden;
+  text-align: left;
+}
+
+.map-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #eee7dd;
+}
+
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  color: #756552;
+  font-size: 11px;
+}
+
+.map-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.legend-line {
+  width: 20px;
+  border-top: 2px solid #987653;
+}
+
+.legend-line.dotted {
+  border-top: 2px dotted #c9bba7;
+}
+
+.map-zoom {
+  display: flex;
+  gap: 6px;
+}
+
+.map-zoom button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #e7ded2;
+  border-radius: 8px;
+  background: #fffdf9;
+  color: #705f4d;
+  cursor: pointer;
+}
+
+.map-zoom button:hover { background: #f0e9df; }
+
+.map-canvas {
+  position: relative;
+  background: #f9f5ee;
+}
+
+.map-canvas svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 70vh;
+}
+
+.map-node { cursor: pointer; transition: opacity 0.25s ease; }
+
+.map-label {
+  fill: #302820;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.map-label.company {
+  fill: #6a4f33;
+  font-weight: 600;
+}
+
+.map-hint {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #eee5d8;
+  color: #58432e;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.map-details {
+  padding: 14px 16px;
+  border-top: 1px solid #eee7dd;
+  color: #594d40;
+  font-size: 13px;
+}
+
+.map-details p { margin: 4px 0; line-height: 1.6; }
+
+.map-details p span {
+  margin-right: 6px;
+  color: #987653;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.map-details-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.map-details-head strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #302820;
+  font-family: 'Manrope', sans-serif;
+  font-size: 15px;
+}

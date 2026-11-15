@@ -80,3 +80,9 @@ Topics (Doors, Windows, Sport, ...), favorites, second phone, "met at" and follo
 need a few new columns. Run `supabase/contact-extras.sql` once in the Supabase dashboard
 (SQL Editor -> New query -> paste -> Run). Until then the site keeps working and shows a hint;
 nothing is lost. After the update, use "Auto-sort by topic" to sort the contacts you already have.
+
+## Connections map (one-time database update)
+
+The "Connections map" view shows who is linked to whom: who introduced whom and which people share a company.
+The "Introduced by" field needs one more column: run `supabase/contact-links.sql` once in the Supabase SQL Editor
+(after `supabase/contact-extras.sql`). Same-company links work without any update.
