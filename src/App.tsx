@@ -11,6 +11,7 @@ import { supabase } from './supabase'
 import './App.css'
 import './animations.css'
 import './features.css'
+import RelationMap from './RelationMap'
 import { DEFAULT_CATEGORIES, normalizeCategory, suggestCategory } from './categories'
 import {
   SORT_LABELS, categoryOf, contactText, countByCategory, emptyForm,
@@ -193,6 +194,8 @@ function App() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<ContactForm>(emptyForm)
   const [extrasReady, setExtrasReady] = useState(true)
+  const [linksReady, setLinksReady] = useState(true)
+  const [view, setView] = useState<'book' | 'map'>('book')
   const [activeFilter, setActiveFilter] = useState(FILTER_ALL)
   const [sortMode, setSortMode] = useState<SortMode>(() => {
     const stored = readStored('book-sort')
@@ -253,6 +256,15 @@ function App() {
       const probe = await supabase.from('contacts').select('category').limit(1)
 
       setExtrasReady(!probe.error)
+    }
+
+    // Same check for the introduced-by column of the relationship map
+    if (rows.length > 0) {
+      setLinksReady('introduced_by' in rows[0])
+    } else {
+      const probe = await supabase.from('contacts').select('introduced_by').limit(1)
+
+      setLinksReady(!probe.error)
     }
 
     setContacts(rows)
@@ -321,6 +333,7 @@ function App() {
       phone_secondary: contact.phone_secondary || '',
       met_at: contact.met_at || '',
       follow_up_date: contact.follow_up_date || '',
+      introduced_by: contact.introduced_by || '',
     })
     setShowForm(true)
   }
@@ -399,7 +412,7 @@ function App() {
         return
       }
 
-      const { category, phone_secondary, met_at, follow_up_date, ...basics } = form
+      const { category, phone_secondary, met_at, follow_up_date, introduced_by, ...basics } = form
       const extras = {
         category: normalizeCategory(category, knownCategories) || null,
         phone_secondary,
@@ -412,11 +425,24 @@ function App() {
           ? supabase.from('contacts').update(data).eq('id', editingId)
           : supabase.from('contacts').insert(data)
 
+      const link = { introduced_by: introduced_by && introduced_by !== editingId ? introduced_by : null }
+
       let result = await write({
         ...basics,
         ...(extrasReady ? extras : {}),
+        ...(linksReady ? link : {}),
         user_id: session.user.id,
       })
+
+      // The link column is missing: save without it first
+      if (result.error && linksReady && /introduced_by/i.test(result.error.message)) {
+        setLinksReady(false)
+        result = await write({
+          ...basics,
+          ...(extrasReady ? extras : {}),
+          user_id: session.user.id,
+        })
+      }
 
       // The database update was not run yet: save the basics so nothing is lost
       if (result.error && extrasReady && /category|is_favorite|phone_secondary|met_at|follow_up_date|schema cache/i.test(result.error.message)) {
@@ -806,6 +832,13 @@ function App() {
         </div>
 
         {contacts.length > 0 && (
+          <div className="view-switch">
+            <button className={view === 'book' ? 'active' : ''} onClick={() => setView('book')}>Book</button>
+            <button className={view === 'map' ? 'active' : ''} onClick={() => setView('map')}>Connections map</button>
+          </div>
+        )}
+
+        {view === 'book' && contacts.length > 0 && (
           <div className="tools-row">
             <label className="sort-control">
               <span>Sort</span>
@@ -857,7 +890,7 @@ function App() {
           </div>
         )}
 
-        {extrasReady && contacts.length > 0 && (
+        {view === 'book' && extrasReady && contacts.length > 0 && (
           <div className="filter-chips">
             <button
               className={activeFilter === FILTER_ALL ? 'chip active' : 'chip'}
@@ -902,7 +935,9 @@ function App() {
           </div>
         )}
 
-        {visibleContacts.length === 0 ? (
+        {view === 'map' && contacts.length > 0 ? (
+          <RelationMap contacts={contacts} linksReady={linksReady} onEdit={openEditContact} />
+        ) : visibleContacts.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon"><BookOpen size={28} /></div>
             <h2>{search || activeFilter !== FILTER_ALL ? 'No contacts found' : 'Your book is empty'}</h2>
@@ -1109,6 +1144,22 @@ function App() {
                         onChange={e => setForm({ ...form, follow_up_date: e.target.value })} />
                     </div>
                   </div>
+                </>
+              )}
+
+              {linksReady && (
+                <>
+                  <label>Introduced by</label>
+                  <select className="form-input" value={form.introduced_by}
+                    onChange={e => setForm({ ...form, introduced_by: e.target.value })}>
+                    <option value="">Nobody / not set</option>
+                    {[...contacts]
+                      .filter(contact => contact.id !== editingId)
+                      .sort((a, b) => a.full_name.localeCompare(b.full_name))
+                      .map(contact => (
+                        <option key={contact.id} value={contact.id}>{contact.full_name}</option>
+                      ))}
+                  </select>
                 </>
               )}
 
